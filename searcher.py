@@ -1,4 +1,5 @@
 import socket
+import psycopg2
 import json
 
 def hitIndex(host, port, query):
@@ -38,7 +39,7 @@ def hitIndex(host, port, query):
 
 def getPostsFromTagIndex(tag):
     port = 7777
-    host = 'helix.vis.uky.edu'
+    host = 'localhost' #'helix.vis.uky.edu'
     post_ids = hitIndex(port, host, tag)
     return post_ids
 
@@ -48,12 +49,26 @@ def getPostsFromTitleIndex(query):
     post_ids = hitIndex(port, host, query)
     return post_ids
 
+def getPostsFromDatabase(post_ids):
+    conn_string = "host='helix.vis.uky.edu' dbname='cs585' user='cs585'"
+    try:
+        db_conn = psycopg2.connect(conn_string)
+        cursor = db_conn.cursor()
+        cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",tuple(post_ids))
+        rows = cur.fetchall()
+    except Exception as e:
+        print e
+
+    for row in rows:
+        print row
+
 # the main searcher!
 def handleQuery(query):
     query = query.lower()
 
     post_ids = getPostsFromTagIndex(query)
-
+    print post_ids
+    getPostsFromDatabase(post_ids)
 
 
 # the infinite workhorse
@@ -95,7 +110,7 @@ def main(test_first):
             print "Working with:"
             print data_obj 
 
-            
+            handleQuery(data_obj['query'])
             
             print "Ready to send"
             conn.send(json.dumps(response))
@@ -122,4 +137,5 @@ if __name__ == '__main__':
         if opt in ('-t','--test'):
             test_first = True
 
-    main(test_first)
+    handleQuery('disney')
+    #main(test_first)
