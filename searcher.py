@@ -1,12 +1,14 @@
 import socket
 import psycopg2
 import json
+import getopt
+import sys
 
 def hitIndex(host, port, query):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
+    s.connect((str(host), int(port)))
     # send the json request for a socket
-    s.send(json.dumps({'query': query}))
+    s.send(json.dumps({'query': str(query)}))
     # tell the other end of the socket that I'm done writing
     s.shutdown(socket.SHUT_WR)
     #recieve the response
@@ -39,23 +41,26 @@ def hitIndex(host, port, query):
 
 def getPostsFromTagIndex(tag):
     port = 7777
-    host = 'localhost' #'helix.vis.uky.edu'
-    post_ids = hitIndex(port, host, tag)
+    host = 'localhost' # searcher runs on helix
+    post_ids = hitIndex(host, port, tag)
     return post_ids
 
 def getPostsFromTitleIndex(query):
     port = 7778
     host = 'helix.vis.uky.edu'
-    post_ids = hitIndex(port, host, query)
+    post_ids = hitIndex(host, port, query)
     return post_ids
 
 def getPostsFromDatabase(post_ids):
-    conn_string = "host='helix.vis.uky.edu' dbname='cs585' user='cs585'"
+    conn_string = "host='helix.vis.uky.edu' dbname='cs585' user='cs585' password='shamblr'"
+    
+    rows = []
     try:
         db_conn = psycopg2.connect(conn_string)
         cursor = db_conn.cursor()
-        cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",tuple(post_ids))
-        rows = cur.fetchall()
+        ids = tuple(post_ids[:50])
+        cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",(ids,))
+        rows = cursor.fetchall()
     except Exception as e:
         print e
 
@@ -65,8 +70,8 @@ def getPostsFromDatabase(post_ids):
 # the main searcher!
 def handleQuery(query):
     query = query.lower()
-
     post_ids = getPostsFromTagIndex(query)
+    # we need to limit DB extraction to the actual results.
     print post_ids
     getPostsFromDatabase(post_ids)
 
@@ -82,7 +87,7 @@ def main(test_first):
 
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('',7776))
+        s.bind(('localhost',7776))
         s.listen(1)
 
         conn = None
