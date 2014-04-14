@@ -76,11 +76,12 @@ class IndexSearcher:
 def getPostsFromDatabase(post_ids):
     conn_string = "host='helix.vis.uky.edu' dbname='cs585' user='cs585' password='shamblr'"
     
+    limit = 50
     rows = []
     try:
         db_conn = psycopg2.connect(conn_string)
         cursor = db_conn.cursor()
-        ids = tuple(list(post_ids))
+        ids = tuple(list(post_ids)[:limit])
         cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",(ids,))
         rows = cursor.fetchall()
     except Exception as e:
@@ -122,6 +123,7 @@ def main(test_first):
             if s == '':
                 break
             print 'finding : ' + s
+            handleQuery(s)
 
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -180,5 +182,5 @@ if __name__ == '__main__':
         if opt in ('-t','--test'):
             test_first = True
 
-    handleQuery('barack obama')
-    #main(test_first)
+    # handleQuery('barack obama')
+    main(test_first)
