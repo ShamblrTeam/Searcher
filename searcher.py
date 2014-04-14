@@ -4,53 +4,75 @@ import json
 import getopt
 import sys
 
-def hitIndex(host, port, query):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((str(host), int(port)))
-    # send the json request for a socket
-    s.send(json.dumps({'query': str(query)}))
-    # tell the other end of the socket that I'm done writing
-    s.shutdown(socket.SHUT_WR)
-    #recieve the response
-    try:
-        data = bytes()
-        while True:
-            new_data = s.recv(1024)
-            if not new_data: break
-            data += new_data
-        s.close()
-        s = None
-        data = str(data)
-    except Exception as e:
-        print e
+class IndexSearcher:
+    def __init__(self):
+        pass
 
-    print data
-    data_obj = {}
-    try:
-        data_obj = json.loads(data)
-    except Exception as e:
-        print e
+    def hitIndex(self, host, port, query):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((str(host), int(port)))
+        # send the json request for a socket
+        s.send(json.dumps({'query': str(query)}))
+        # tell the other end of the socket that I'm done writing
+        s.shutdown(socket.SHUT_WR)
+        #recieve the response
+        try:
+            data = bytes()
+            while True:
+                new_data = s.recv(1024)
+                if not new_data: break
+                data += new_data
+            s.close()
+            s = None
+            data = str(data)
+        except Exception as e:
+            print e
 
-    if 'worked' not in data_obj or data_obj['worked'] == False:
-        print 'DID NOT WORK ' + host + ':' + str(port) + '?' + query
+        print data
+        data_obj = {}
+        try:
+            data_obj = json.loads(data)
+        except Exception as e:
+            print e
 
-    if 'posts' not in data_obj:
-        print 'MISSING POSTS'
+        if 'worked' not in data_obj or data_obj['worked'] == False:
+            print 'DID NOT WORK ' + host + ':' + str(port) + '?' + query
 
-    return data_obj['posts']
+        if 'posts' not in data_obj:
+            print 'MISSING POSTS'
 
-def getPostsFromTagIndex(tag):
-    port = 7777
-    host = 'localhost' # searcher runs on helix
-    post_ids = hitIndex(host, port, tag)
-    return post_ids
+        return data_obj['posts']
 
-def getPostsFromTitleIndex(query):
-    port = 7778
-    host = 'helix.vis.uky.edu'
-    post_ids = hitIndex(host, port, query)
-    return post_ids
+    def getPostsFromTagIndex(self, tag):
+        port = 7777
+        host = 'localhost' # searcher runs on helix
+        post_ids = self.hitIndex(host, port, tag)
+        return post_ids
 
+    def getPostsFromTitleIndex(self, query):
+        port = 7778
+        host = 'helix.vis.uky.edu'
+        post_ids = self.hitIndex(host, port, query)
+        return post_ids
+
+    def getPostsFromQuery(self, query):
+        # split by words
+        words = query.split(' ')
+        post_ids = set()
+        if len(words) == 1:
+            post_ids = set(self.getPostsFromTagIndex(query))
+        else:
+            # the intersection of post_ids from individual words
+            post_ids = []
+            for word in words:
+                post_ids_for_word = self.getPostsFromTagIndex(word)
+                post_ids = list(set(post_ids) & set(post_ids_for_word))
+            
+            # the entire query itself
+            post_ids_for_whole_query = self.getPostsFromTagIndex(query)
+            post_ids = set(post_ids + post_ids_for_whole_query)
+        return post_ids
+    
 def getPostsFromDatabase(post_ids):
     conn_string = "host='helix.vis.uky.edu' dbname='cs585' user='cs585' password='shamblr'"
     
@@ -58,23 +80,39 @@ def getPostsFromDatabase(post_ids):
     try:
         db_conn = psycopg2.connect(conn_string)
         cursor = db_conn.cursor()
-        ids = tuple(post_ids[:50])
+        ids = tuple(list(post_ids))
         cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",(ids,))
         rows = cursor.fetchall()
     except Exception as e:
         print e
 
+    posts = []
     for row in rows:
-        print row
+        post = {
+            'post_id': row[0],
+            'url': row[1],
+            'blog_name': row[2],
+            'type': row[3],
+            'content': row[4],
+            'date': str(row[5]),
+            'num_notes': row[6],
+            'title': row[7]
+        }
+        posts.append(post)
+    return posts
 
 # the main searcher!
 def handleQuery(query):
-    query = query.lower()
-    post_ids = getPostsFromTagIndex(query)
+    index = IndexSearcher()
+    post_ids = index.getPostsFromQuery(query.lower())
+
+    # now rank them
+
     # we need to limit DB extraction to the actual results.
     print post_ids
-    getPostsFromDatabase(post_ids)
-
+    posts = getPostsFromDatabase(post_ids)
+    print posts
+    return posts
 
 # the infinite workhorse
 def main(test_first):
@@ -112,11 +150,11 @@ def main(test_first):
             response['worked'] = True
             response['posts'] = []
 
-            print "Working with:"
-            print data_obj 
+            try:
+                response['posts'] = handleQuery(data_obj['query'])
+            except Exception as e:
+                print e
 
-            handleQuery(data_obj['query'])
-            
             print "Ready to send"
             conn.send(json.dumps(response))
             conn.shutdown(socket.SHUT_WR)
@@ -142,5 +180,5 @@ if __name__ == '__main__':
         if opt in ('-t','--test'):
             test_first = True
 
-    handleQuery('disney')
+    handleQuery('barack obama')
     #main(test_first)
