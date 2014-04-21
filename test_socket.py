@@ -3,7 +3,7 @@ import json
 
 while True:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(('localhost', 7776))
+    s.connect(('helix.vis.uky.edu', 7776))
 
     tag = str(raw_input('find word: '))
     if tag == '':
