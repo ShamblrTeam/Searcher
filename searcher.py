@@ -82,7 +82,7 @@ def getPostsFromDatabase(post_ids):
         db_conn = psycopg2.connect(conn_string)
         cursor = db_conn.cursor()
         ids = tuple(list(post_ids)[:limit])
-        cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",(ids,))
+        cursor.execute("SELECT * FROM post JOIN blog ON post.blog_name = blog.blog_name WHERE post.post_id IN %s ORDER BY post.note_count DESC; ",(ids,))
         rows = cursor.fetchall()
     except Exception as e:
         print e
@@ -97,7 +97,8 @@ def getPostsFromDatabase(post_ids):
             'content': row[4],
             'date': str(row[5]),
             'num_notes': row[6],
-            'title': row[7]
+            'title': row[7],
+            'blog_link': row[9],
         }
         posts.append(post)
     return posts
