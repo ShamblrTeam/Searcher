@@ -82,7 +82,7 @@ def getPostsFromDatabase(post_ids):
         db_conn = psycopg2.connect(conn_string)
         cursor = db_conn.cursor()
         ids = tuple(list(post_ids)[:limit])
-        cursor.execute("SELECT * FROM post WHERE post_id IN %s; ",(ids,))
+        cursor.execute("SELECT * FROM post JOIN blog ON post.blog_name = blog.blog_name WHERE post.post_id IN %s ORDER BY post.note_count DESC; ",(ids,))
         rows = cursor.fetchall()
     except Exception as e:
         print e
@@ -92,12 +92,13 @@ def getPostsFromDatabase(post_ids):
         post = {
             'post_id': row[0],
             'url': row[1],
-            'blog_name': row[2],
+            'author': row[2],
             'type': row[3],
             'content': row[4],
-            'date': str(row[5]),
+            'timestamp': str(row[5]),
             'num_notes': row[6],
-            'title': row[7]
+            'title': row[7],
+            'blog_link': row[9],
         }
         posts.append(post)
     return posts
@@ -127,12 +128,14 @@ def main(test_first):
 
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('localhost',7776))
+        s.bind(('',7776))
         s.listen(1)
 
         conn = None
         while True:
             conn, address = s.accept()
+            print "Found a connection"
+            print "Receiving data..."
             data = bytes()
             while True:
                 new_data = conn.recv(1024)
@@ -140,6 +143,8 @@ def main(test_first):
                     break
                 data += new_data
             data = str(data)
+            print "Found: "
+            print data
 
             data_obj = {}
             try:
